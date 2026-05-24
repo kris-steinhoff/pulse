@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import httpx
 from textual import work
 from textual.widgets import Static, Sparkline, Label
+from textual.containers import Horizontal
 from textual.events import MouseMove
 from rich.console import Console, ConsoleOptions
 from rich.segment import Segment
@@ -135,8 +136,30 @@ class GapSparkline(Sparkline):
         )
 
 
+MAX_NAME_LEN = 20
+
+
+def _truncate(name: str) -> str:
+    if len(name) <= MAX_NAME_LEN:
+        return name
+    return name[: MAX_NAME_LEN - 1] + "…"
+
+
 class StocksWidget(Static):
     """A widget to display stock symbols with spark lines."""
+
+    DEFAULT_CSS = """
+    StocksWidget .stock-row {
+        height: 1;
+    }
+    StocksWidget .stock-row Label {
+        width: 22;
+    }
+    StocksWidget .stock-row GapSparkline {
+        width: 1fr;
+        height: 1;
+    }
+    """
 
     def __init__(
         self,
@@ -149,9 +172,10 @@ class StocksWidget(Static):
 
     def compose(self) -> ComposeResult:
         for i, symbol in enumerate(self.symbols):
-            display_name = symbol.name or symbol.symbol
-            yield Label(f"[bold]{display_name} (1 wk)[/bold]", id=f"label_{i}")
-            yield GapSparkline(id=f"spark_{i}", summary_function=max)
+            display_name = _truncate(symbol.name or symbol.symbol)
+            with Horizontal(classes="stock-row"):
+                yield Label(f"[bold]{display_name}[/bold]", id=f"label_{i}")
+                yield GapSparkline(id=f"spark_{i}", summary_function=max)
 
     def on_mount(self) -> None:
         self.fetch_data()
@@ -200,7 +224,7 @@ class StocksWidget(Static):
                             or symbol.symbol
                         )
                         label = self.query_one(f"#label_{i}", Label)
-                        label.update(f"[bold]{fetched_name} (1 wk)[/bold]")
+                        label.update(f"[bold]{_truncate(fetched_name)}[/bold]")
 
                     spark = self.query_one(f"#spark_{i}", GapSparkline)
                     spark.start_time = start_time

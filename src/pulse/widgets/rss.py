@@ -61,7 +61,7 @@ class RssWidget(Static):
     def __init__(
         self,
         feeds: list[RssFeed],
-        max_items: int = 10,
+        max_items: int | None = None,
         *,
         title: str | None = None,
         name: str | None = None,
@@ -112,7 +112,8 @@ class RssWidget(Static):
 
         items.sort(key=_sort_key, reverse=True)
 
-        for item in items[: self.max_items]:
+        shown = items if self.max_items is None else items[: self.max_items]
+        for item in shown:
             await container.mount(_RssItemView(item))
 
     async def _fetch_one(
@@ -212,9 +213,9 @@ def _render(item: RssItem, width: int) -> Text:
 
     text = Text(no_wrap=True, overflow="ellipsis")
     if item.link:
-        text.append(title, style=Style(bold=True, link=item.link))
+        text.append(title, style=Style(link=item.link))
     else:
-        text.append(title, style="bold")
+        text.append(title)
     if summary:
         text.append(sep)
         text.append(summary, style="dim")

@@ -26,6 +26,7 @@ def compose() -> ComposeResult:
             StockSymbol("NVDA"),
             StockSymbol("META"),
         ],
+        title="Stocks",
         id="stocks",
     )
     yield RssWidget(
@@ -34,5 +35,6 @@ def compose() -> ComposeResult:
             RssFeed("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"),
             RssFeed("The Verge", "https://www.theverge.com/rss/index.xml"),
         ],
+        title="News",
         id="news",
     )

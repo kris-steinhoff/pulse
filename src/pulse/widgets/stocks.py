@@ -152,6 +152,10 @@ class StocksWidget(Static):
     """A widget to display stock symbols with spark lines."""
 
     DEFAULT_CSS = """
+    StocksWidget #stocks-title {
+        text-style: bold;
+        color: $accent;
+    }
     StocksWidget .stock-row {
         height: 1;
     }
@@ -176,16 +180,20 @@ class StocksWidget(Static):
         self,
         symbols: list[StockSymbol],
         *args,
+        title: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
         self.symbols = symbols
+        self.widget_title = title
 
     def compose(self) -> ComposeResult:
+        if self.widget_title:
+            yield Label(self.widget_title, id="stocks-title")
         for i, symbol in enumerate(self.symbols):
             display_name = _truncate(symbol.name or symbol.symbol)
             with Horizontal(classes="stock-row"):
-                yield Label(f"[bold]{display_name}[/bold]", id=f"label_{i}")
+                yield Label(display_name, id=f"label_{i}")
                 yield GapSparkline(
                     id=f"spark_{i}",
                     summary_function=lambda v: sum(v) / len(v),
@@ -239,7 +247,7 @@ class StocksWidget(Static):
                             or symbol.symbol
                         )
                         label = self.query_one(f"#label_{i}", Label)
-                        label.update(f"[bold]{_truncate(fetched_name)}[/bold]")
+                        label.update(_truncate(fetched_name))
 
                     exchange = meta.get("exchangeName") or meta.get("fullExchangeName")
                     if exchange:

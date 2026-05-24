@@ -25,6 +25,7 @@ def compose() -> ComposeResult:
             StockSymbol("BZ=F", name="Brent Crude"),
             StockSymbol("GC=F", name="Gold"),
         ],
+        title="Stocks",
         id="stocks",
     )
     yield RssWidget(
@@ -35,5 +36,6 @@ def compose() -> ComposeResult:
             ),
             RssFeed("BBC", "https://feeds.bbci.co.uk/news/world/rss.xml"),
         ],
+        title="News",
         id="news",
     )

@@ -3,12 +3,11 @@ from datetime import datetime
 import typer
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
-from pulse.widgets.stocks import StocksWidget, StockSymbol
-from pulse.widgets.rss import RssFeed, RssWidget
+from pulse import dashboards
 
 cli = typer.Typer(help="Pulse: A personal dashboard")
 
@@ -45,9 +44,6 @@ class HelpScreen(ModalScreen):
             "  ?        Show this help\n"
             "  d        Toggle dark mode\n"
             "  q / Esc  Quit (or close help)\n\n"
-            "[b]Widgets[/b]\n"
-            "  Stocks   Configured stock symbols, 7-day sparklines\n"
-            "  RSS      Headlines from configured feeds\n\n"
             f"[dim]{now}[/dim]"
         )
         with Vertical(id="help-box"):
@@ -58,42 +54,22 @@ class HelpScreen(ModalScreen):
 class PulseDashboard(App):
     """A Textual app for the Pulse dashboard."""
 
-    CSS = """
-    StocksWidget, RssWidget {
-        width: 1fr;
-    }
-    """
-
     BINDINGS = [
         ("d", "toggle_dark", "Toggle dark mode"),
         ("q", "quit", "Quit"),
         ("question_mark", "help", "Help"),
     ]
 
+    def __init__(self, dashboard_name: str) -> None:
+        self.dashboard = dashboards.load(dashboard_name)
+        self.CSS = getattr(self.dashboard, "CSS", "")
+        super().__init__()
+        self.title = getattr(self.dashboard, "TITLE", f"Pulse — {dashboard_name}")
+
     def compose(self) -> ComposeResult:
-        """Create child widgets for the app."""
-        with Horizontal():
-            yield StocksWidget(
-                symbols=[
-                    StockSymbol("^GSPC"),  # Name will be fetched
-                    StockSymbol("BZ=F", name="Brent Crude"),
-                ],
-                id="stock_widget",
-            )
-            yield RssWidget(
-                title="News",
-                feeds=[
-                    RssFeed("HN", "https://hnrss.org/frontpage"),
-                    RssFeed(
-                        "NYT",
-                        "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
-                    ),
-                ],
-                id="news_widget",
-            )
+        yield from self.dashboard.compose()
 
     def action_toggle_dark(self) -> None:
-        """An action to toggle dark mode."""
         self.dark = not self.dark
 
     def action_help(self) -> None:
@@ -101,10 +77,18 @@ class PulseDashboard(App):
 
 
 @cli.command()
-def run():
+def run(
+    dashboard: str = typer.Argument(
+        ...,
+        help=f"Dashboard to show. One of: {', '.join(dashboards.AVAILABLE)}",
+    ),
+) -> None:
     """Run the Pulse dashboard."""
-    app = PulseDashboard()
-    app.run()
+    if dashboard not in dashboards.AVAILABLE:
+        raise typer.BadParameter(
+            f"Unknown dashboard '{dashboard}'. Available: {', '.join(dashboards.AVAILABLE)}"
+        )
+    PulseDashboard(dashboard).run()
 
 
 def main():

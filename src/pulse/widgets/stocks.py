@@ -186,7 +186,10 @@ class StocksWidget(Static):
             display_name = _truncate(symbol.name or symbol.symbol)
             with Horizontal(classes="stock-row"):
                 yield Label(f"[bold]{display_name}[/bold]", id=f"label_{i}")
-                yield GapSparkline(id=f"spark_{i}", summary_function=max)
+                yield GapSparkline(
+                    id=f"spark_{i}",
+                    summary_function=lambda v: sum(v) / len(v),
+                )
                 yield Label("", id=f"exchange_{i}", classes="exchange")
 
     def on_mount(self) -> None:
@@ -195,23 +198,23 @@ class StocksWidget(Static):
     def process_data(self, data: dict) -> tuple[list[float | None], float]:
         import time
 
+        num_buckets = 168
+        start_time = (int(time.time()) // 3600 - (num_buckets - 1)) * 3600
+
         try:
             timestamps = data["chart"]["result"][0]["timestamp"]
             closes = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
         except (KeyError, IndexError, TypeError):
-            # In case the Yahoo Finance API returns unexpected shape
-            return [None] * 168, time.time() - 7 * 24 * 3600
+            return [None] * num_buckets, start_time
 
-        end_time = time.time()
-        start_time = end_time - 7 * 24 * 3600
-        num_buckets = 168
-        bucketed_data = [None] * num_buckets
+        buckets: list[list[float]] = [[] for _ in range(num_buckets)]
         for t, c in zip(timestamps, closes):
             if c is None or t < start_time:
                 continue
-            idx = int((t - start_time) / 3600)
+            idx = int((t - start_time) // 3600)
             if 0 <= idx < num_buckets:
-                bucketed_data[idx] = c
+                buckets[idx].append(c)
+        bucketed_data = [(sum(b) / len(b)) if b else None for b in buckets]
         return bucketed_data, start_time
 
     @work(exclusive=True)

@@ -9,6 +9,7 @@ from textual.widgets import Static
 
 from pulse.panels.weather import WeatherPanel
 from pulse.panels.economic import EconomicPanel
+from pulse.panels.rss import RssPanel
 
 cli = typer.Typer(help="Pulse: A personal dashboard")
 
@@ -47,7 +48,8 @@ class HelpScreen(ModalScreen):
             "  q / Esc  Quit (or close help)\n\n"
             "[b]Panels[/b]\n"
             "  Weather  NWS forecast for Ann Arbor\n"
-            "  Economic S&P 500 and Brent Crude, 7-day sparklines\n\n"
+            "  Economic S&P 500 and Brent Crude, 7-day sparklines\n"
+            "  RSS      Headlines from configured feeds\n\n"
             f"[dim]{now}[/dim]"
         )
         with Vertical(id="help-box"):
@@ -59,7 +61,7 @@ class PulseDashboard(App):
     """A Textual app for the Pulse dashboard."""
 
     CSS = """
-    WeatherPanel, EconomicPanel {
+    WeatherPanel, EconomicPanel, RssPanel {
         width: 1fr;
     }
     """
@@ -75,6 +77,16 @@ class PulseDashboard(App):
         with Horizontal():
             yield WeatherPanel(id="weather_panel")
             yield EconomicPanel(id="economic_panel")
+            yield RssPanel(
+                title="Hacker News",
+                url="https://hnrss.org/frontpage",
+                id="hn_panel",
+            )
+            yield RssPanel(
+                title="NYT World",
+                url="https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+                id="nyt_world_panel",
+            )
 
     def action_toggle_dark(self) -> None:
         """An action to toggle dark mode."""

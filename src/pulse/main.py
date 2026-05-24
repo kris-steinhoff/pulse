@@ -9,7 +9,7 @@ from textual.widgets import Static
 
 from pulse.panels.weather import WeatherPanel
 from pulse.panels.economic import EconomicPanel
-from pulse.panels.rss import RssPanel
+from pulse.panels.rss import RssFeed, RssPanel
 
 cli = typer.Typer(help="Pulse: A personal dashboard")
 
@@ -78,14 +78,15 @@ class PulseDashboard(App):
             yield WeatherPanel(id="weather_panel")
             yield EconomicPanel(id="economic_panel")
             yield RssPanel(
-                title="Hacker News",
-                url="https://hnrss.org/frontpage",
-                id="hn_panel",
-            )
-            yield RssPanel(
-                title="NYT World",
-                url="https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
-                id="nyt_world_panel",
+                title="News",
+                feeds=[
+                    RssFeed("HN", "https://hnrss.org/frontpage"),
+                    RssFeed(
+                        "NYT",
+                        "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+                    ),
+                ],
+                id="news_panel",
             )
 
     def action_toggle_dark(self) -> None:

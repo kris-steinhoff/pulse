@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from html import unescape
 from typing import ClassVar
 from xml.etree import ElementTree as ET
 
 import httpx
+from rich.style import Style
 from rich.text import Text
 from textual import work
 from textual.app import ComposeResult
@@ -14,16 +18,26 @@ from textual.widgets import Label, Static
 
 
 @dataclass(frozen=True)
+class RssFeed:
+    title: str
+    url: str
+
+
+@dataclass(frozen=True)
 class RssItem:
     title: str
     link: str
     summary: str
+    feed_title: str
+    published: datetime | None = None
 
 
 class RssPanel(Static):
-    """A reusable RSS feed panel.
+    """A reusable RSS feed panel that aggregates one or more feeds.
 
-    Pass a `title`, feed `url`, and optional `max_items` to render any feed.
+    Items from all feeds are merged and sorted by publication date when
+    available. Each item shows a tag indicating its source feed, and the
+    title is rendered as a clickable terminal hyperlink.
     """
 
     DEFAULT_CSS = """
@@ -47,7 +61,7 @@ class RssPanel(Static):
     def __init__(
         self,
         title: str,
-        url: str,
+        feeds: list[RssFeed],
         max_items: int = 10,
         *,
         name: str | None = None,
@@ -55,44 +69,62 @@ class RssPanel(Static):
         classes: str | None = None,
     ) -> None:
         super().__init__(name=name, id=id, classes=classes)
-        self.feed_title = title
-        self.url = url
+        if not feeds:
+            raise ValueError("RssPanel requires at least one feed")
+        self.panel_title = title
+        self.feeds = feeds
         self.max_items = max_items
 
     def compose(self) -> ComposeResult:
-        yield Label(self.feed_title, id="rss-title")
+        yield Label(self.panel_title, id="rss-title")
         yield VerticalScroll(id="rss-items")
 
     def on_mount(self) -> None:
-        self.fetch_feed()
+        self.fetch_feeds()
 
     @work(exclusive=True)
-    async def fetch_feed(self) -> None:
+    async def fetch_feeds(self) -> None:
         container = self.query_one("#rss-items", VerticalScroll)
         headers = {"User-Agent": "PulseDashboard/1.0"}
-        try:
-            async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
-                res = await client.get(self.url, headers=headers)
-                res.raise_for_status()
-                items = self._parse(res.content)
-        except Exception as e:
-            await container.mount(
-                Static(Text(f"Failed to load feed: {e}", style="bold red"))
+
+        async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+            results = await asyncio.gather(
+                *(self._fetch_one(client, feed, headers) for feed in self.feeds),
+                return_exceptions=True,
             )
-            return
+
+        items: list[RssItem] = []
+        for feed, result in zip(self.feeds, results):
+            if isinstance(result, Exception):
+                await container.mount(
+                    Static(
+                        Text(f"[{feed.title}] failed: {result}", style="bold red"),
+                        classes="rss-item",
+                    )
+                )
+                continue
+            items.extend(result)
 
         if not items:
             await container.mount(Static(Text("No items found.", style="dim")))
             return
 
-        for item in items[: self.max_items]:
-            text = Text()
-            text.append(f"• {item.title}\n", style="bold")
-            if item.summary:
-                text.append(item.summary, style="dim")
-            await container.mount(Static(text, classes="rss-item"))
+        items.sort(key=_sort_key, reverse=True)
 
-    def _parse(self, content: bytes) -> list[RssItem]:
+        for item in items[: self.max_items]:
+            await container.mount(Static(_render(item), classes="rss-item"))
+
+    async def _fetch_one(
+        self,
+        client: httpx.AsyncClient,
+        feed: RssFeed,
+        headers: dict[str, str],
+    ) -> list[RssItem]:
+        res = await client.get(feed.url, headers=headers)
+        res.raise_for_status()
+        return self._parse(res.content, feed.title)
+
+    def _parse(self, content: bytes, feed_title: str) -> list[RssItem]:
         root = ET.fromstring(content)
         items: list[RssItem] = []
 
@@ -103,6 +135,8 @@ class RssPanel(Static):
                     title=_text(node.findtext("title")),
                     link=_text(node.findtext("link")),
                     summary=_clean(node.findtext("description")),
+                    feed_title=feed_title,
+                    published=_parse_date(node.findtext("pubDate")),
                 )
             )
 
@@ -116,15 +150,57 @@ class RssPanel(Static):
             summary = node.findtext(f"{self.ATOM_NS}summary") or node.findtext(
                 f"{self.ATOM_NS}content"
             )
+            published = node.findtext(f"{self.ATOM_NS}published") or node.findtext(
+                f"{self.ATOM_NS}updated"
+            )
             items.append(
                 RssItem(
                     title=_text(node.findtext(f"{self.ATOM_NS}title")),
                     link=link,
                     summary=_clean(summary),
+                    feed_title=feed_title,
+                    published=_parse_date(published),
                 )
             )
 
         return items
+
+
+def _render(item: RssItem) -> Text:
+    text = Text()
+    text.append(f"[{item.feed_title}] ", style="bold cyan")
+    if item.link:
+        text.append(item.title, style=Style(bold=True, link=item.link))
+    else:
+        text.append(item.title, style="bold")
+    text.append("\n")
+    if item.summary:
+        text.append(item.summary, style="dim")
+    return text
+
+
+def _sort_key(item: RssItem) -> datetime:
+    if item.published is None:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    if item.published.tzinfo is None:
+        return item.published.replace(tzinfo=timezone.utc)
+    return item.published
+
+
+def _parse_date(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    value = value.strip()
+    try:
+        dt = parsedate_to_datetime(value)
+        if dt is not None:
+            return dt
+    except (TypeError, ValueError):
+        pass
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
 
 
 def _text(value: str | None) -> str:

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import httpx
 from textual import work
 from textual.widgets import Static, Sparkline, Label
@@ -8,6 +9,12 @@ from rich.style import Style
 from textual.renderables.sparkline import Sparkline as SparklineRenderable
 from textual.renderables._blend_colors import blend_colors
 from textual.app import ComposeResult
+
+
+@dataclass
+class StockSymbol:
+    symbol: str
+    name: str | None = None
 
 
 class GapSparklineRenderable(SparklineRenderable):
@@ -128,14 +135,23 @@ class GapSparkline(Sparkline):
         )
 
 
-class EconomicWidget(Static):
-    """A widget to display economic info: S&P 500 and Brent Crude with spark lines."""
+class StocksWidget(Static):
+    """A widget to display stock symbols with spark lines."""
+
+    def __init__(
+        self,
+        symbols: list[StockSymbol],
+        *args,
+        **kwargs,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.symbols = symbols
 
     def compose(self) -> ComposeResult:
-        yield Label("[bold green]S&P 500 (1 wk)[/bold green]")
-        yield GapSparkline(id="sp500_sparkline", summary_function=max)
-        yield Label("[bold yellow]Brent Crude (1 wk)[/bold yellow]")
-        yield GapSparkline(id="brent_sparkline", summary_function=max)
+        for i, symbol in enumerate(self.symbols):
+            display_name = symbol.name or symbol.symbol
+            yield Label(f"[bold]{display_name} (1 wk)[/bold]", id=f"label_{i}")
+            yield GapSparkline(id=f"spark_{i}", summary_function=max)
 
     def on_mount(self) -> None:
         self.fetch_data()
@@ -143,8 +159,13 @@ class EconomicWidget(Static):
     def process_data(self, data: dict) -> tuple[list[float | None], float]:
         import time
 
-        timestamps = data["chart"]["result"][0]["timestamp"]
-        closes = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
+        try:
+            timestamps = data["chart"]["result"][0]["timestamp"]
+            closes = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
+        except (KeyError, IndexError, TypeError):
+            # In case the Yahoo Finance API returns unexpected shape
+            return [None] * 168, time.time() - 7 * 24 * 3600
+
         end_time = time.time()
         start_time = end_time - 7 * 24 * 3600
         num_buckets = 168
@@ -160,31 +181,36 @@ class EconomicWidget(Static):
     @work(exclusive=True)
     async def fetch_data(self) -> None:
         headers = {"User-Agent": "PulseDashboard/1.0"}
-        try:
-            async with httpx.AsyncClient() as client:
-                res = await client.get(
-                    "https://query2.finance.yahoo.com/v8/finance/chart/^GSPC?range=7d&interval=1h",
-                    headers=headers,
-                )
-                res.raise_for_status()
-                sp500_data, start_time = self.process_data(res.json())
+        async with httpx.AsyncClient() as client:
+            for i, symbol in enumerate(self.symbols):
+                try:
+                    res = await client.get(
+                        f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol.symbol}?range=7d&interval=1h",
+                        headers=headers,
+                    )
+                    res.raise_for_status()
+                    data_json = res.json()
+                    data_points, start_time = self.process_data(data_json)
 
-                res2 = await client.get(
-                    "https://query2.finance.yahoo.com/v8/finance/chart/BZ=F?range=7d&interval=1h",
-                    headers=headers,
-                )
-                res2.raise_for_status()
-                brent_data, _ = self.process_data(res2.json())
+                    if symbol.name is None:
+                        meta = data_json["chart"]["result"][0].get("meta", {})
+                        fetched_name = (
+                            meta.get("shortName")
+                            or meta.get("longName")
+                            or symbol.symbol
+                        )
+                        label = self.query_one(f"#label_{i}", Label)
+                        label.update(f"[bold]{fetched_name} (1 wk)[/bold]")
 
-                sp500_spark = self.query_one("#sp500_sparkline", GapSparkline)
-                sp500_spark.start_time = start_time
-                sp500_spark.data = sp500_data
+                    spark = self.query_one(f"#spark_{i}", GapSparkline)
+                    spark.start_time = start_time
+                    spark.data = data_points
 
-                brent_spark = self.query_one("#brent_sparkline", GapSparkline)
-                brent_spark.start_time = start_time
-                brent_spark.data = brent_data
-
-        except Exception as e:
-            self.query_one("#sp500_sparkline", GapSparkline).display = False
-            self.query_one("#brent_sparkline", GapSparkline).display = False
-            self.mount(Label(f"Failed to fetch economic data: {e}", style="bold red"))
+                except Exception as e:
+                    try:
+                        self.query_one(f"#spark_{i}", GapSparkline).display = False
+                    except Exception:
+                        pass
+                    self.mount(
+                        Label(f"Failed to fetch {symbol.name}: {e}", style="bold red")
+                    )

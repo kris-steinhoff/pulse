@@ -7,7 +7,7 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
-from pulse.widgets.economic import EconomicWidget
+from pulse.widgets.stocks import StocksWidget, StockSymbol
 from pulse.widgets.rss import RssFeed, RssWidget
 
 cli = typer.Typer(help="Pulse: A personal dashboard")
@@ -46,7 +46,7 @@ class HelpScreen(ModalScreen):
             "  d        Toggle dark mode\n"
             "  q / Esc  Quit (or close help)\n\n"
             "[b]Widgets[/b]\n"
-            "  Economic S&P 500 and Brent Crude, 7-day sparklines\n"
+            "  Stocks   Configured stock symbols, 7-day sparklines\n"
             "  RSS      Headlines from configured feeds\n\n"
             f"[dim]{now}[/dim]"
         )
@@ -59,7 +59,7 @@ class PulseDashboard(App):
     """A Textual app for the Pulse dashboard."""
 
     CSS = """
-    EconomicWidget, RssWidget {
+    StocksWidget, RssWidget {
         width: 1fr;
     }
     """
@@ -73,7 +73,13 @@ class PulseDashboard(App):
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         with Horizontal():
-            yield EconomicWidget(id="economic_widget")
+            yield StocksWidget(
+                symbols=[
+                    StockSymbol("^GSPC"),  # Name will be fetched
+                    StockSymbol("BZ=F", name="Brent Crude"),
+                ],
+                id="stock_widget",
+            )
             yield RssWidget(
                 title="News",
                 feeds=[

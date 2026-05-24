@@ -7,7 +7,6 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
-from pulse.panels.weather import WeatherPanel
 from pulse.panels.economic import EconomicPanel
 from pulse.panels.rss import RssFeed, RssPanel
 
@@ -47,7 +46,6 @@ class HelpScreen(ModalScreen):
             "  d        Toggle dark mode\n"
             "  q / Esc  Quit (or close help)\n\n"
             "[b]Panels[/b]\n"
-            "  Weather  NWS forecast for Ann Arbor\n"
             "  Economic S&P 500 and Brent Crude, 7-day sparklines\n"
             "  RSS      Headlines from configured feeds\n\n"
             f"[dim]{now}[/dim]"
@@ -61,7 +59,7 @@ class PulseDashboard(App):
     """A Textual app for the Pulse dashboard."""
 
     CSS = """
-    WeatherPanel, EconomicPanel, RssPanel {
+    EconomicPanel, RssPanel {
         width: 1fr;
     }
     """
@@ -75,7 +73,6 @@ class PulseDashboard(App):
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         with Horizontal():
-            yield WeatherPanel(id="weather_panel")
             yield EconomicPanel(id="economic_panel")
             yield RssPanel(
                 title="News",

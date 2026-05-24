@@ -52,7 +52,7 @@ class RssWidget(Static):
         height: 1fr;
     }
     RssWidget .rss-item {
-        margin-bottom: 1;
+        height: 1;
     }
     """
 
@@ -113,7 +113,7 @@ class RssWidget(Static):
         items.sort(key=_sort_key, reverse=True)
 
         for item in items[: self.max_items]:
-            await container.mount(Static(_render(item), classes="rss-item"))
+            await container.mount(_RssItemView(item))
 
     async def _fetch_one(
         self,
@@ -167,16 +167,62 @@ class RssWidget(Static):
         return items
 
 
-def _render(item: RssItem) -> Text:
-    text = Text()
-    text.append(f"[{item.feed_title}] ", style="bold cyan")
+class _RssItemView(Static):
+    def __init__(self, item: RssItem) -> None:
+        super().__init__(classes="rss-item")
+        self._item = item
+
+    def on_mount(self) -> None:
+        self._render_for_width(self.size.width or 80)
+
+    def on_resize(self) -> None:
+        self._render_for_width(self.size.width)
+
+    def _render_for_width(self, width: int) -> None:
+        self.update(_render(self._item, width))
+
+
+def _render(item: RssItem, width: int) -> Text:
+    if width <= 0:
+        width = 80
+
+    sep = "  "
+    title = item.title
+    summary = item.summary
+    badge = item.feed_title or ""
+
+    title_len = len(title)
+    sum_block = len(sep) + len(summary) if summary else 0
+    badge_block = len(sep) + len(badge) if badge else 0
+    total = title_len + sum_block + badge_block
+
+    if total > width:
+        # 1. Truncate summary.
+        avail = width - title_len - badge_block - len(sep)
+        if summary and avail >= 2:
+            summary = summary[: avail - 1].rstrip() + "…"
+        else:
+            summary = ""
+            # 2. Drop badge.
+            if title_len + (len(sep) + len(badge) if badge else 0) > width:
+                badge = ""
+                # 3. Truncate title.
+                if title_len > width:
+                    title = title[: max(0, width - 1)].rstrip() + "…"
+
+    text = Text(no_wrap=True, overflow="ellipsis")
     if item.link:
-        text.append(item.title, style=Style(bold=True, link=item.link))
+        text.append(title, style=Style(bold=True, link=item.link))
     else:
-        text.append(item.title, style="bold")
-    text.append("\n")
-    if item.summary:
-        text.append(item.summary, style="dim")
+        text.append(title, style="bold")
+    if summary:
+        text.append(sep)
+        text.append(summary, style="dim")
+    if badge:
+        used = len(title) + (len(sep) + len(summary) if summary else 0) + len(badge)
+        pad = max(len(sep), width - used)
+        text.append(" " * pad)
+        text.append(badge, style="cyan")
     return text
 
 

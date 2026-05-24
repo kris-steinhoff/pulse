@@ -7,6 +7,7 @@ from textual.events import MouseMove
 from rich.console import Console, ConsoleOptions
 from rich.segment import Segment
 from rich.style import Style
+from rich.text import Text
 from textual.renderables.sparkline import Sparkline as SparklineRenderable
 from textual.renderables._blend_colors import blend_colors
 from textual.app import ComposeResult
@@ -85,6 +86,7 @@ class GapSparklineRenderable(SparklineRenderable):
 
 class GapSparkline(Sparkline):
     start_time: float = 0.0
+    currency: str = ""
 
     def on_mouse_move(self, event: MouseMove) -> None:
         import datetime
@@ -108,10 +110,11 @@ class GapSparkline(Sparkline):
             time_str = dt.strftime("%b %d, %I:%M %p")
 
             if not valid_partition:
-                self.tooltip = f"{time_str}\nMarket Closed"
+                self.tooltip = time_str
             else:
                 price = self.summary_function(valid_partition)
-                self.tooltip = f"{time_str}\nPrice: {price:,.2f}"
+                suffix = f" {self.currency}" if self.currency else ""
+                self.tooltip = f"{time_str}\nPrice: {price:,.2f}{suffix}"
 
     def render(self):
         data = self.data or []
@@ -159,6 +162,14 @@ class StocksWidget(Static):
         width: 1fr;
         height: 1;
     }
+    StocksWidget Horizontal.stock-row > Label.exchange {
+        width: 12;
+        min-width: 12;
+        color: cyan;
+        content-align: right middle;
+        text-align: right;
+        padding: 0 0 0 1;
+    }
     """
 
     def __init__(
@@ -176,6 +187,7 @@ class StocksWidget(Static):
             with Horizontal(classes="stock-row"):
                 yield Label(f"[bold]{display_name}[/bold]", id=f"label_{i}")
                 yield GapSparkline(id=f"spark_{i}", summary_function=max)
+                yield Label("", id=f"exchange_{i}", classes="exchange")
 
     def on_mount(self) -> None:
         self.fetch_data()
@@ -216,8 +228,8 @@ class StocksWidget(Static):
                     data_json = res.json()
                     data_points, start_time = self.process_data(data_json)
 
+                    meta = data_json["chart"]["result"][0].get("meta", {})
                     if symbol.name is None:
-                        meta = data_json["chart"]["result"][0].get("meta", {})
                         fetched_name = (
                             meta.get("shortName")
                             or meta.get("longName")
@@ -226,8 +238,16 @@ class StocksWidget(Static):
                         label = self.query_one(f"#label_{i}", Label)
                         label.update(f"[bold]{_truncate(fetched_name)}[/bold]")
 
+                    exchange = meta.get("exchangeName") or meta.get("fullExchangeName")
+                    if exchange:
+                        badge = self.query_one(f"#exchange_{i}", Label)
+                        badge.update(Text(exchange))
+                        full = meta.get("fullExchangeName") or exchange
+                        badge.tooltip = full
+
                     spark = self.query_one(f"#spark_{i}", GapSparkline)
                     spark.start_time = start_time
+                    spark.currency = meta.get("currency", "")
                     spark.data = data_points
 
                 except Exception as e:

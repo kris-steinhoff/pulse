@@ -21,7 +21,7 @@ It runs as a command-line utility.
 
 The source code is located in the `src/pulse/` directory.
 - `main.py` contains the entry point and main application definition.
-- Dashboard panels should be modular and located in `src/pulse/panels/`.
+- Dashboard widgets should be modular and located in `src/pulse/widgets/`.
 - UI elements and core app logic are decoupled for maintainability.
 
 ## Development Workflows

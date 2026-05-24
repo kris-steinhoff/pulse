@@ -9,18 +9,19 @@ from textual.renderables.sparkline import Sparkline as SparklineRenderable
 from textual.renderables._blend_colors import blend_colors
 from textual.app import ComposeResult
 
+
 class GapSparklineRenderable(SparklineRenderable):
     def __rich_console__(self, console: Console, options: ConsoleOptions):
         width = self.width or options.max_width
         height = self.height or 1
         len_data = len(self.data)
-        
+
         if len_data == 0:
             for _ in range(height - 1):
                 yield Segment.line()
             yield Segment("▁" * width, self.min_color)
             return
-            
+
         valid_data = [x for x in self.data if x is not None]
         if not valid_data:
             for _ in range(height - 1):
@@ -60,7 +61,7 @@ class GapSparklineRenderable(SparklineRenderable):
                     else:
                         bar = self.BARS[bar_index % bar_line_segments]
                         with_color = True
-                    
+
                     if with_color:
                         bar_color = blend_colors(min_color, max_color, height_ratio)
                         style = Style.from_color(bar_color)
@@ -73,25 +74,27 @@ class GapSparklineRenderable(SparklineRenderable):
             if i > 0:
                 yield Segment.line()
 
+
 class GapSparkline(Sparkline):
     start_time: float = 0.0
 
     def on_mouse_move(self, event: MouseMove) -> None:
         import datetime
         from fractions import Fraction
+
         if not self.data or self.size.width == 0:
             self.tooltip = None
             return
-            
+
         width = self.size.width
         bucket_step = Fraction(len(self.data), width)
-        
+
         if 0 <= event.x < width:
             start_idx = int(bucket_step * event.x)
             end_idx = int(bucket_step * (event.x + 1))
             partition = self.data[start_idx:end_idx]
             valid_partition = [x for x in partition if x is not None]
-            
+
             ts = self.start_time + start_idx * 3600
             dt = datetime.datetime.fromtimestamp(ts)
             time_str = dt.strftime("%b %d, %I:%M %p")
@@ -105,8 +108,16 @@ class GapSparkline(Sparkline):
     def render(self):
         data = self.data or []
         _, base = self.background_colors
-        min_color = base + (self.get_component_styles("sparkline--min-color").color if self.min_color is None else self.min_color)
-        max_color = base + (self.get_component_styles("sparkline--max-color").color if self.max_color is None else self.max_color)
+        min_color = base + (
+            self.get_component_styles("sparkline--min-color").color
+            if self.min_color is None
+            else self.min_color
+        )
+        max_color = base + (
+            self.get_component_styles("sparkline--max-color").color
+            if self.max_color is None
+            else self.max_color
+        )
         return GapSparklineRenderable(
             data,
             width=self.size.width,
@@ -116,7 +127,8 @@ class GapSparkline(Sparkline):
             summary_function=self.summary_function,
         )
 
-class EconomicPanel(Static):
+
+class EconomicWidget(Static):
     """A widget to display economic info: S&P 500 and Brent Crude with spark lines."""
 
     def compose(self) -> ComposeResult:
@@ -127,9 +139,10 @@ class EconomicPanel(Static):
 
     def on_mount(self) -> None:
         self.fetch_data()
-        
+
     def process_data(self, data: dict) -> tuple[list[float | None], float]:
         import time
+
         timestamps = data["chart"]["result"][0]["timestamp"]
         closes = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
         end_time = time.time()
@@ -150,15 +163,15 @@ class EconomicPanel(Static):
         try:
             async with httpx.AsyncClient() as client:
                 res = await client.get(
-                    "https://query2.finance.yahoo.com/v8/finance/chart/^GSPC?range=7d&interval=1h", 
-                    headers=headers
+                    "https://query2.finance.yahoo.com/v8/finance/chart/^GSPC?range=7d&interval=1h",
+                    headers=headers,
                 )
                 res.raise_for_status()
                 sp500_data, start_time = self.process_data(res.json())
 
                 res2 = await client.get(
-                    "https://query2.finance.yahoo.com/v8/finance/chart/BZ=F?range=7d&interval=1h", 
-                    headers=headers
+                    "https://query2.finance.yahoo.com/v8/finance/chart/BZ=F?range=7d&interval=1h",
+                    headers=headers,
                 )
                 res2.raise_for_status()
                 brent_data, _ = self.process_data(res2.json())

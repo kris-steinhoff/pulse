@@ -32,8 +32,8 @@ class RssItem:
     published: datetime | None = None
 
 
-class RssPanel(Static):
-    """A reusable RSS feed panel that aggregates one or more feeds.
+class RssWidget(Static):
+    """A reusable RSS feed widget that aggregates one or more feeds.
 
     Items from all feeds are merged and sorted by publication date when
     available. Each item shows a tag indicating its source feed, and the
@@ -41,17 +41,17 @@ class RssPanel(Static):
     """
 
     DEFAULT_CSS = """
-    RssPanel {
+    RssWidget {
         height: 1fr;
     }
-    RssPanel #rss-title {
+    RssWidget #rss-title {
         text-style: bold;
         color: $accent;
     }
-    RssPanel #rss-items {
+    RssWidget #rss-items {
         height: 1fr;
     }
-    RssPanel .rss-item {
+    RssWidget .rss-item {
         margin-bottom: 1;
     }
     """
@@ -70,13 +70,13 @@ class RssPanel(Static):
     ) -> None:
         super().__init__(name=name, id=id, classes=classes)
         if not feeds:
-            raise ValueError("RssPanel requires at least one feed")
-        self.panel_title = title
+            raise ValueError("RssWidget requires at least one feed")
+        self.widget_title = title
         self.feeds = feeds
         self.max_items = max_items
 
     def compose(self) -> ComposeResult:
-        yield Label(self.panel_title, id="rss-title")
+        yield Label(self.widget_title, id="rss-title")
         yield VerticalScroll(id="rss-items")
 
     def on_mount(self) -> None:

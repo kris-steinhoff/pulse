@@ -7,14 +7,14 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
-from pulse.panels.economic import EconomicPanel
-from pulse.panels.rss import RssFeed, RssPanel
+from pulse.widgets.economic import EconomicWidget
+from pulse.widgets.rss import RssFeed, RssWidget
 
 cli = typer.Typer(help="Pulse: A personal dashboard")
 
 
 class HelpScreen(ModalScreen):
-    """Modal showing keybindings and panel info."""
+    """Modal showing keybindings and widget info."""
 
     BINDINGS = [
         Binding("question_mark,escape,q", "dismiss", "Close"),
@@ -45,7 +45,7 @@ class HelpScreen(ModalScreen):
             "  ?        Show this help\n"
             "  d        Toggle dark mode\n"
             "  q / Esc  Quit (or close help)\n\n"
-            "[b]Panels[/b]\n"
+            "[b]Widgets[/b]\n"
             "  Economic S&P 500 and Brent Crude, 7-day sparklines\n"
             "  RSS      Headlines from configured feeds\n\n"
             f"[dim]{now}[/dim]"
@@ -59,7 +59,7 @@ class PulseDashboard(App):
     """A Textual app for the Pulse dashboard."""
 
     CSS = """
-    EconomicPanel, RssPanel {
+    EconomicWidget, RssWidget {
         width: 1fr;
     }
     """
@@ -73,8 +73,8 @@ class PulseDashboard(App):
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         with Horizontal():
-            yield EconomicPanel(id="economic_panel")
-            yield RssPanel(
+            yield EconomicWidget(id="economic_widget")
+            yield RssWidget(
                 title="News",
                 feeds=[
                     RssFeed("HN", "https://hnrss.org/frontpage"),
@@ -83,7 +83,7 @@ class PulseDashboard(App):
                         "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
                     ),
                 ],
-                id="news_panel",
+                id="news_widget",
             )
 
     def action_toggle_dark(self) -> None:

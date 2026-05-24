@@ -29,7 +29,6 @@ def compose() -> ComposeResult:
         id="stocks",
     )
     yield RssWidget(
-        title="Tech News",
         feeds=[
             RssFeed("HN", "https://hnrss.org/frontpage"),
             RssFeed("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"),

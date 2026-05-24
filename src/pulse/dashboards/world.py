@@ -28,7 +28,6 @@ def compose() -> ComposeResult:
         id="stocks",
     )
     yield RssWidget(
-        title="World News",
         feeds=[
             RssFeed(
                 "NYT World",

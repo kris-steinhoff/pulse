@@ -60,10 +60,10 @@ class RssWidget(Static):
 
     def __init__(
         self,
-        title: str,
         feeds: list[RssFeed],
         max_items: int = 10,
         *,
+        title: str | None = None,
         name: str | None = None,
         id: str | None = None,
         classes: str | None = None,
@@ -76,7 +76,8 @@ class RssWidget(Static):
         self.max_items = max_items
 
     def compose(self) -> ComposeResult:
-        yield Label(self.widget_title, id="rss-title")
+        if self.widget_title:
+            yield Label(self.widget_title, id="rss-title")
         yield VerticalScroll(id="rss-items")
 
     def on_mount(self) -> None:

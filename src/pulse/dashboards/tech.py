@@ -31,9 +31,15 @@ def compose() -> ComposeResult:
     )
     yield RssWidget(
         feeds=[
-            RssFeed("HN", "https://hnrss.org/frontpage"),
-            RssFeed("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"),
-            RssFeed("The Verge", "https://www.theverge.com/rss/index.xml"),
+            RssFeed("HN", "https://hnrss.org/frontpage", short="HN"),
+            RssFeed(
+                "Ars Technica",
+                "https://feeds.arstechnica.com/arstechnica/index",
+                short="Ars",
+            ),
+            RssFeed(
+                "The Verge", "https://www.theverge.com/rss/index.xml", short="Verge"
+            ),
         ],
         title="News",
         id="news",

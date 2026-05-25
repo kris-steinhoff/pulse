@@ -33,8 +33,9 @@ def compose() -> ComposeResult:
             RssFeed(
                 "NYT World",
                 "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+                short="NYT",
             ),
-            RssFeed("BBC", "https://feeds.bbci.co.uk/news/world/rss.xml"),
+            RssFeed("BBC", "https://feeds.bbci.co.uk/news/world/rss.xml", short="BBC"),
         ],
         title="News",
         id="news",

@@ -167,12 +167,12 @@ class StocksWidget(Static):
         height: 1;
     }
     StocksWidget Horizontal.stock-row > Label.exchange {
-        width: 12;
-        min-width: 12;
+        width: 8;
+        min-width: 8;
         color: cyan;
         content-align: right middle;
         text-align: right;
-        padding: 0 0 0 1;
+        padding: 0 1 0 2;
     }
     """
 
@@ -201,6 +201,9 @@ class StocksWidget(Static):
                 yield Label("", id=f"exchange_{i}", classes="exchange")
 
     def on_mount(self) -> None:
+        self.fetch_data()
+
+    def refresh_data(self) -> None:
         self.fetch_data()
 
     def process_data(self, data: dict) -> tuple[list[float | None], float]:
@@ -252,7 +255,7 @@ class StocksWidget(Static):
                     exchange = meta.get("exchangeName") or meta.get("fullExchangeName")
                     if exchange:
                         badge = self.query_one(f"#exchange_{i}", Label)
-                        badge.update(Text(exchange))
+                        badge.update(Text(exchange[:5]))
                         full = meta.get("fullExchangeName") or exchange
                         badge.tooltip = full
 

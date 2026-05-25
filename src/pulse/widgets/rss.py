@@ -17,10 +17,19 @@ from textual.containers import VerticalScroll
 from textual.widgets import Label, Static
 
 
+BADGE_WIDTH = 5
+
+
 @dataclass(frozen=True)
 class RssFeed:
     title: str
     url: str
+    short: str | None = None
+
+    @property
+    def badge(self) -> str:
+        label = self.short or self.title
+        return label[:BADGE_WIDTH]
 
 
 @dataclass(frozen=True)
@@ -29,6 +38,7 @@ class RssItem:
     link: str
     summary: str
     feed_title: str
+    feed_badge: str
     published: datetime | None = None
 
 
@@ -50,6 +60,7 @@ class RssWidget(Static):
     }
     RssWidget #rss-items {
         height: 1fr;
+        scrollbar-size-vertical: 1;
     }
     RssWidget .rss-item {
         height: 1;
@@ -83,9 +94,13 @@ class RssWidget(Static):
     def on_mount(self) -> None:
         self.fetch_feeds()
 
+    def refresh_data(self) -> None:
+        self.fetch_feeds()
+
     @work(exclusive=True)
     async def fetch_feeds(self) -> None:
         container = self.query_one("#rss-items", VerticalScroll)
+        await container.remove_children()
         headers = {"User-Agent": "PulseDashboard/1.0"}
 
         async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
@@ -124,9 +139,9 @@ class RssWidget(Static):
     ) -> list[RssItem]:
         res = await client.get(feed.url, headers=headers)
         res.raise_for_status()
-        return self._parse(res.content, feed.title)
+        return self._parse(res.content, feed.title, feed.badge)
 
-    def _parse(self, content: bytes, feed_title: str) -> list[RssItem]:
+    def _parse(self, content: bytes, feed_title: str, feed_badge: str) -> list[RssItem]:
         root = ET.fromstring(content)
         items: list[RssItem] = []
 
@@ -138,6 +153,7 @@ class RssWidget(Static):
                     link=_text(node.findtext("link")),
                     summary=_clean(node.findtext("description")),
                     feed_title=feed_title,
+                    feed_badge=feed_badge,
                     published=_parse_date(node.findtext("pubDate")),
                 )
             )
@@ -161,6 +177,7 @@ class RssWidget(Static):
                     link=link,
                     summary=_clean(summary),
                     feed_title=feed_title,
+                    feed_badge=feed_badge,
                     published=_parse_date(published),
                 )
             )
@@ -179,6 +196,13 @@ class _RssItemView(Static):
     def on_resize(self) -> None:
         self._render_for_width(self.size.width)
 
+    def on_mouse_move(self, event) -> None:
+        width = self.size.width
+        if width and event.x >= width - BADGE_WIDTH:
+            self.tooltip = self._item.feed_title
+        else:
+            self.tooltip = None
+
     def _render_for_width(self, width: int) -> None:
         self.update(_render(self._item, width))
 
@@ -187,29 +211,25 @@ def _render(item: RssItem, width: int) -> Text:
     if width <= 0:
         width = 80
 
-    sep = "  "
+    sep = " "
+    badge_gap = 2
     title = item.title
     summary = item.summary
-    badge = item.feed_title or ""
+    badge = (item.feed_badge or "").rjust(BADGE_WIDTH)
+    badge_block = badge_gap + BADGE_WIDTH
 
     title_len = len(title)
     sum_block = len(sep) + len(summary) if summary else 0
-    badge_block = len(sep) + len(badge) if badge else 0
     total = title_len + sum_block + badge_block
 
     if total > width:
-        # 1. Truncate summary.
         avail = width - title_len - badge_block - len(sep)
         if summary and avail >= 2:
             summary = summary[: avail - 1].rstrip() + "…"
         else:
             summary = ""
-            # 2. Drop badge.
-            if title_len + (len(sep) + len(badge) if badge else 0) > width:
-                badge = ""
-                # 3. Truncate title.
-                if title_len > width:
-                    title = title[: max(0, width - 1)].rstrip() + "…"
+            if title_len + badge_block > width:
+                title = title[: max(0, width - badge_block - 1)].rstrip() + "…"
 
     text = Text(no_wrap=True, overflow="ellipsis")
     if item.link:
@@ -219,11 +239,10 @@ def _render(item: RssItem, width: int) -> Text:
     if summary:
         text.append(sep)
         text.append(summary, style="dim")
-    if badge:
-        used = len(title) + (len(sep) + len(summary) if summary else 0) + len(badge)
-        pad = max(len(sep), width - used)
-        text.append(" " * pad)
-        text.append(badge, style="cyan")
+    used = len(title) + (len(sep) + len(summary) if summary else 0) + BADGE_WIDTH
+    pad = max(badge_gap, width - used)
+    text.append(" " * pad)
+    text.append(badge, style="cyan")
     return text
 
 

@@ -243,12 +243,13 @@ class StocksWidget(Static):
                     data_points, start_time = self.process_data(data_json)
 
                     meta = data_json["chart"]["result"][0].get("meta", {})
+                    fetched_name = (
+                        symbol.name
+                        or meta.get("shortName")
+                        or meta.get("longName")
+                        or symbol.symbol
+                    )
                     if symbol.name is None:
-                        fetched_name = (
-                            meta.get("shortName")
-                            or meta.get("longName")
-                            or symbol.symbol
-                        )
                         label = self.query_one(f"#label_{i}", Label)
                         label.update(_truncate(fetched_name))
 

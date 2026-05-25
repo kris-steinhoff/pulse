@@ -85,6 +85,7 @@ class RssWidget(Static):
         self.widget_title = title
         self.feeds = feeds
         self.max_items = max_items
+        self._last_items: list[RssItem] = []
 
     def compose(self) -> ComposeResult:
         if self.widget_title:
@@ -128,8 +129,26 @@ class RssWidget(Static):
         items.sort(key=_sort_key, reverse=True)
 
         shown = items if self.max_items is None else items[: self.max_items]
+        self._last_items = shown
         for item in shown:
             await container.mount(_RssItemView(item))
+
+    def snapshot(self) -> str:
+        title = self.widget_title or "News"
+        if not self._last_items:
+            return f"## {title}\n(no data)"
+        lines = [f"## {title}"]
+        for item in self._last_items[:25]:
+            when = (
+                item.published.strftime("%Y-%m-%d %H:%M")
+                if item.published is not None
+                else "n/a"
+            )
+            badge = (item.feed_badge or "").strip() or item.feed_title
+            lines.append(f"- [{badge}] {item.title} ({when})")
+            if item.summary:
+                lines.append(f"  {item.summary}")
+        return "\n".join(lines)
 
     async def _fetch_one(
         self,
